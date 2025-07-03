@@ -80,7 +80,7 @@ builder.defineStreamHandler(({ id }) => {
   };
 });
 
-const PORT = process.env.PORT || 7000;
+const PORT = process.env.PORT || 8080;
 console.log(`⚡️ A minha app vai ouvir na porta: ${PORT}`);
 
 const server = http.createServer((req, res) => {
