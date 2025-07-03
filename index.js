@@ -53,7 +53,9 @@ async function loadChannels() {
   }
 }
 
+// Carrega os canais no arranque e depois a cada 30 min para manter atualizado
 loadChannels();
+setInterval(loadChannels, 30 * 60 * 1000);
 
 builder.defineCatalogHandler(({ type, id }) => {
   if (type !== "tv" || id !== "iptv-catalog") return { metas: [] };
@@ -85,7 +87,7 @@ console.log(`⚡️ A minha app vai ouvir na porta: ${PORT}`);
 
 const server = http.createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  builder.getRouter()(req, res);
+  builder.getInterface(req, res);  // <== aqui está o uso correto!
 });
 
 server.listen(PORT, () => {
