@@ -31,7 +31,7 @@ async function loadChannels() {
     const lines = text.split("\n");
     let currentName = "";
 
-    channels = []; // reset para garantir
+    channels = [];
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
@@ -53,13 +53,16 @@ async function loadChannels() {
   }
 }
 
-// Carrega os canais no arranque e depois a cada 30 min para manter atualizado
 loadChannels();
 setInterval(loadChannels, 30 * 60 * 1000);
 
 builder.defineCatalogHandler(({ type, id }) => {
-  if (type !== "tv" || id !== "iptv-catalog") return { metas: [] };
-  return {
+  console.time("catalogHandler");
+  if (type !== "tv" || id !== "iptv-catalog") {
+    console.timeEnd("catalogHandler");
+    return { metas: [] };
+  }
+  const response = {
     metas: channels.map(channel => ({
       id: channel.id,
       type: "tv",
@@ -67,6 +70,8 @@ builder.defineCatalogHandler(({ type, id }) => {
       poster: "https://img.icons8.com/color/240/tv.png"
     }))
   };
+  console.timeEnd("catalogHandler");
+  return response;
 });
 
 builder.defineStreamHandler(({ id }) => {
@@ -87,7 +92,7 @@ console.log(`⚡️ A minha app vai ouvir na porta: ${PORT}`);
 
 const server = http.createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  builder.getInterface(req, res);  // <== aqui está o uso correto!
+  builder.getInterface(req, res);
 });
 
 server.listen(PORT, () => {
