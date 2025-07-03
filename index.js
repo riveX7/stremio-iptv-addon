@@ -1,96 +1,46 @@
-const express = require("express");
-const { addonBuilder } = require("stremio-addon-sdk");
-const fetch = require("node-fetch");
+const express = require('express');
+const fetch = require('node-fetch');
+const { addonBuilder } = require('stremio-addon-sdk');
 
+const app = express();
 const PORT = process.env.PORT || 8080;
-const M3U_URL = "https://m3upt.com/iptv";
 
-const manifest = {
-  id: "org.miguel.iptv",
-  version: "1.0.0",
-  name: "Miguel IPTV Addon",
-  description: "Addon IPTV com lista M3U do M3UPT",
-  resources: ["catalog", "stream"],
-  types: ["tv"],
-  catalogs: [{ type: "tv", id: "iptv" }],
-  idPrefixes: ["iptv:"],
-};
+const M3U_URL = 'https://m3upt.com/iptv';
 
-let channels = [];
+async function parseM3U(url) {
+  const res = await fetch(url);
+  const text = await res.text();
 
-const builder = new addonBuilder(manifest);
+  const lines = text.split('\n');
+  const channels = [];
+  let currentTitle = null;
+  let currentLogo = null;
 
-builder.defineCatalogHandler(() => {
-  console.log("📦 Pedido de catálogo recebido");
-  if (!channels.length) {
-    console.warn("⚠️ Ainda sem canais carregados!");
-    return Promise.resolve({ metas: [] });
-  }
+  for (let line of lines) {
+    line = line.trim();
+    if (line.startsWith('#EXTINF')) {
+      const titleMatch = line.match(/,(.*)$/);
+      const logoMatch = line.match(/tvg-logo="([^"]+)"/);
 
-  const metas = channels.map((ch) => ({
-    id: ch.id,
-    type: "tv",
-    name: ch.name,
-    poster: ch.poster,
-  }));
-
-  return Promise.resolve({ metas });
-});
-
-builder.defineStreamHandler(({ id }) => {
-  console.log(`🎥 Pedido de stream para ${id}`);
-  const channel = channels.find((ch) => ch.id === id);
-  if (!channel) return Promise.resolve({ streams: [] });
-
-  return Promise.resolve({
-    streams: [{ title: channel.name, url: channel.url, isRemote: true }],
-  });
-});
-
-async function loadChannels() {
-  try {
-    console.log("🔄 A carregar canais da M3U...");
-    const res = await fetch(M3U_URL);
-    const text = await res.text();
-    const lines = text.split("\n");
-
-    channels = [];
-
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].startsWith("#EXTINF")) {
-        const name = lines[i].split(",")[1]?.trim() || "Sem Nome";
-        const url = lines[i + 1]?.trim();
-        if (!url) continue;
-
-        channels.push({
-          id: "iptv:" + encodeURIComponent(name.toLowerCase().replace(/\s/g, "-")),
-          name,
-          type: "tv",
-          poster: "https://img.icons8.com/color/240/tv.png",
-          url,
-        });
-      }
+      currentTitle = titleMatch ? titleMatch[1].trim() : 'Canal sem nome';
+      currentLogo = logoMatch ? logoMatch[1] : null;
+    } else if (line && !line.startsWith('#')) {
+      channels.push({
+        name: currentTitle,
+        logo: currentLogo,
+        url: line
+      });
+      currentTitle = null;
+      currentLogo = null;
     }
-
-    console.log(`✅ ${channels.length} canais carregados da M3UPT`);
-  } catch (err) {
-    console.error("❌ Erro ao carregar canais:", err);
   }
+
+  return channels;
 }
 
-// 🚀 Express + Middleware Stremio
-const app = express();
-
-// Header CORS
-app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  next();
-});
-
-// Middleware do Stremio SDK
-app.use(builder.getMiddleware());
-
-app.listen(PORT, async () => {
-  console.log(`🚀 Addon a correr na porta ${PORT}`);
-  await loadChannels();
-});
+const manifest = {
+  id: 'org.miguel.m3upt',
+  version: '1.0.0',
+  name: 'Miguel IPTV M3UPT Addon',
+  description: 'Addon IPTV com lista M3U da M3UPT para Stremio',
+  resources: ['stream', 'c]()
