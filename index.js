@@ -80,11 +80,10 @@ builder.defineStreamHandler(({ id }) => {
   };
 });
 
-// Servidor HTTP com CORS aberto
 const PORT = process.env.PORT || 7000;
+console.log(`⚡️ A minha app vai ouvir na porta: ${PORT}`);
 
 const server = http.createServer((req, res) => {
-  // Libera CORS para todo mundo
   res.setHeader("Access-Control-Allow-Origin", "*");
   builder.getInterface()(req, res);
 });
