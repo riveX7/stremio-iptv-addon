@@ -1,5 +1,6 @@
 const { addonBuilder } = require("stremio-addon-sdk");
 const fetch = require("node-fetch");
+const http = require("http");
 
 const manifest = {
   id: "community.iptvaddon.pt",
@@ -77,4 +78,7 @@ builder.defineStreamHandler(({ id }) => {
   };
 });
 
-module.exports = builder.getInterface();
+const PORT = process.env.PORT || 7000;
+http.createServer(builder.getInterface()).listen(PORT, () => {
+  console.log(`🚀 Addon a correr em http://localhost:${PORT}/manifest.json`);
+});
