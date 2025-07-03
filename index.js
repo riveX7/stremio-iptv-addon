@@ -91,7 +91,7 @@ builder.defineMetaHandler(async ({ id }) => {
   };
 });
 
-app.use(builder.getExpressRouter());
+app.use(builder.getMiddleware());
 
 app.listen(PORT, () => {
   console.log(`🚀 Miguel IPTV Addon a correr na porta ${PORT}`);
