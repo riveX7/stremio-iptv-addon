@@ -16,22 +16,29 @@ const manifest = {
   idPrefixes: ["iptv:"],
 };
 
-const builder = new addonBuilder(manifest);
 let channels = [];
 
-// Catálogo
+const builder = new addonBuilder(manifest);
+
 builder.defineCatalogHandler(() => {
+  console.log("📦 Pedido de catálogo recebido");
+  if (!channels.length) {
+    console.warn("⚠️ Ainda sem canais carregados!");
+    return Promise.resolve({ metas: [] });
+  }
+
   const metas = channels.map((ch) => ({
     id: ch.id,
     type: "tv",
     name: ch.name,
     poster: ch.poster,
   }));
+
   return Promise.resolve({ metas });
 });
 
-// Stream
 builder.defineStreamHandler(({ id }) => {
+  console.log(`🎥 Pedido de stream para ${id}`);
   const channel = channels.find((ch) => ch.id === id);
   if (!channel) return Promise.resolve({ streams: [] });
 
@@ -40,7 +47,6 @@ builder.defineStreamHandler(({ id }) => {
   });
 });
 
-// Carrega canais M3U
 async function loadChannels() {
   try {
     console.log("🔄 A carregar canais da M3U...");
@@ -68,18 +74,25 @@ async function loadChannels() {
 
     console.log(`✅ ${channels.length} canais carregados da M3UPT`);
   } catch (err) {
-    console.error("❌ Erro a carregar canais:", err);
+    console.error("❌ Erro ao carregar canais:", err);
   }
 }
 
-// 🚀 Express para manter Railway feliz
+// 🔧 Express + builder
 const app = express();
+
 app.use((req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  builder.getInterface()(req, res);
+  try {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    builder.getInterface()(req, res);
+  } catch (err) {
+    console.error("❌ ERRO INTERNO A RESPONDER:", err);
+    res.statusCode = 500;
+    res.end("Internal Server Error");
+  }
 });
 
 app.listen(PORT, async () => {
   console.log(`🚀 Addon a correr na porta ${PORT}`);
-  await loadChannels(); // carrega os canais só depois do servidor arrancar
+  await loadChannels();
 });
