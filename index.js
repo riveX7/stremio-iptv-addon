@@ -78,19 +78,17 @@ async function loadChannels() {
   }
 }
 
-// 🔧 Express + builder
+// 🚀 Express + Middleware Stremio
 const app = express();
 
-app.use((req, res) => {
-  try {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    builder.getInterface()(req, res);
-  } catch (err) {
-    console.error("❌ ERRO INTERNO A RESPONDER:", err);
-    res.statusCode = 500;
-    res.end("Internal Server Error");
-  }
+// Header CORS
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  next();
 });
+
+// Middleware do Stremio SDK
+app.use(builder.getMiddleware());
 
 app.listen(PORT, async () => {
   console.log(`🚀 Addon a correr na porta ${PORT}`);
