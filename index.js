@@ -2,6 +2,7 @@ const { addonBuilder } = require("stremio-addon-sdk");
 const fetch = require("node-fetch");
 const http = require("http");
 
+const PORT = process.env.PORT || 8080;
 const M3U_URL = "https://m3upt.com/iptv";
 
 const manifest = {
@@ -19,57 +20,20 @@ const builder = new addonBuilder(manifest);
 
 let channels = [];
 
-async function loadChannels() {
-  console.log("🔄 A carregar canais da M3U...");
-  try {
-    const res = await fetch(M3U_URL);
-    const text = await res.text();
-
-    const lines = text.split("\n");
-    channels = [];
-
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].startsWith("#EXTINF")) {
-        const info = lines[i];
-        const url = lines[i + 1]?.trim();
-        if (!url) continue;
-
-        const nameMatch = info.match(/,(.+)$/);
-        const name = nameMatch ? nameMatch[1] : "Unknown";
-
-        // Criar um id simples para o canal
-        const id = "iptv:" + encodeURIComponent(name.toLowerCase().replace(/\s/g, "-"));
-
-        channels.push({
-          id,
-          name,
-          type: "tv",
-          poster: "", // podes colocar poster default se quiseres
-          url,
-        });
-      }
-    }
-
-    console.log(`✅ ${channels.length} canais carregados da M3UPT`);
-  } catch (e) {
-    console.error("Erro a carregar canais:", e);
-  }
-}
-
-// Catalog
-builder.defineCatalogHandler(({ type, id }) => {
-  if (type !== "tv" || id !== "iptv") {
-    return Promise.resolve({ metas: [] });
-  }
-  return Promise.resolve({ metas: channels });
+builder.defineCatalogHandler(() => {
+  const metas = channels.map((ch) => ({
+    id: ch.id,
+    type: "tv",
+    name: ch.name,
+    poster: ch.poster,
+  }));
+  return Promise.resolve({ metas });
 });
 
-// Streams
 builder.defineStreamHandler(({ id }) => {
   const channel = channels.find((ch) => ch.id === id);
-  if (!channel) {
-    return Promise.resolve({ streams: [] });
-  }
+  if (!channel) return Promise.resolve({ streams: [] });
+
   return Promise.resolve({
     streams: [
       {
@@ -81,11 +45,39 @@ builder.defineStreamHandler(({ id }) => {
   });
 });
 
-const PORT = process.env.PORT || 8080;
+// Criar o servidor imediatamente
+const server = http.createServer(builder.getInterface());
 
-loadChannels().then(() => {
-  const server = http.createServer(builder.getInterface());
-  server.listen(PORT, () => {
-    console.log(`🚀 Addon a correr na porta ${PORT}`);
-  });
+server.listen(PORT, () => {
+  console.log(`🚀 Addon a correr na porta ${PORT}`);
 });
+
+// Carregar canais em background (não bloqueia o Railway)
+(async () => {
+  try {
+    console.log("🔄 A carregar canais da M3U...");
+    const res = await fetch(M3U_URL);
+    const text = await res.text();
+
+    const lines = text.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].startsWith("#EXTINF")) {
+        const name = lines[i].split(",")[1]?.trim() || "Desconhecido";
+        const url = lines[i + 1]?.trim();
+        if (!url) continue;
+
+        channels.push({
+          id: "iptv:" + encodeURIComponent(name.toLowerCase().replace(/\s/g, "-")),
+          name,
+          type: "tv",
+          poster: "https://img.icons8.com/color/240/tv.png",
+          url,
+        });
+      }
+    }
+
+    console.log(`✅ ${channels.length} canais carregados da M3UPT`);
+  } catch (err) {
+    console.error("❌ Erro a carregar canais:", err);
+  }
+})();
