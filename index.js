@@ -2,99 +2,115 @@ const { addonBuilder } = require("stremio-addon-sdk");
 const fetch = require("node-fetch");
 const http = require("http");
 
-const manifest = {
-  id: "community.iptvaddon.pt",
+const PORT = process.env.PORT || 8080;
+const M3U_URL = "https://m3upt.com/iptv";
+
+// Função para carregar e processar os canais M3U
+async function loadChannels() {
+  console.log("🔄 A carregar canais da M3U...");
+  const res = await fetch(M3U_URL);
+  const text = await res.text();
+
+  // Parsing simples da M3U para extrair canais
+  const lines = text.split("\n");
+  const channels = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].startsWith("#EXTINF:")) {
+      const nameMatch = lines[i].match(/,(.+)/);
+      const name = nameMatch ? nameMatch[1].trim() : "Unknown";
+      const url = lines[i + 1] ? lines[i + 1].trim() : "";
+      const id = url; // usar url como id único
+      
+      channels.push({
+        id,
+        name,
+        url,
+        type: "tv",
+        poster: "https://img.icons8.com/color/240/tv.png"
+      });
+    }
+  }
+  console.log(`✅ ${channels.length} canais carregados da M3U.`);
+  return channels;
+}
+
+// Vamos já carregar os canais ao arrancar o servidor
+let channels = [];
+loadChannels()
+  .then(c => { channels = c; })
+  .catch(err => {
+    console.error("Erro a carregar canais:", err);
+  });
+
+const builder = new addonBuilder({
+  id: "org.miguel.iptv",
   version: "1.0.0",
-  name: "IPTV Portugal (M3UPT)",
-  description: "Addon para ver canais IPTV via M3UPT",
+  name: "Miguel IPTV Addon",
+  description: "Addon IPTV para Stremio com M3U da M3UPT",
   resources: ["catalog", "stream"],
   types: ["tv"],
-  idPrefixes: ["iptvpt_"],
   catalogs: [
     {
       type: "tv",
       id: "iptv-catalog",
-      name: "Canais M3UPT",
-      extra: []
+      name: "IPTV M3U Catalog"
     }
   ]
-};
+});
 
-const builder = new addonBuilder(manifest);
-
-let channels = [];
-
-async function loadChannels() {
-  try {
-    const res = await fetch("https://m3upt.com/iptv");
-    const text = await res.text();
-    const lines = text.split("\n");
-    let currentName = "";
-
-    channels = [];
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (line.startsWith("#EXTINF")) {
-        const match = line.match(/,(.*)/);
-        if (match) currentName = match[1].trim();
-      } else if (line.startsWith("http")) {
-        const url = line.trim();
-        channels.push({
-          name: currentName || "Canal IPTV",
-          url,
-          id: "iptvpt_" + Buffer.from(url).toString("base64")
-        });
-      }
-    }
-    console.log(`✅ ${channels.length} canais carregados da M3UPT`);
-  } catch (err) {
-    console.error("❌ Erro a carregar lista M3U:", err);
-  }
-}
-
-loadChannels();
-setInterval(loadChannels, 30 * 60 * 1000);
-
-builder.defineCatalogHandler(({ type, id }) => {
+// Handler do catálogo
+builder.defineCatalogHandler(async ({ type, id }) => {
   console.time("catalogHandler");
   if (type !== "tv" || id !== "iptv-catalog") {
     console.timeEnd("catalogHandler");
     return { metas: [] };
   }
-  const response = {
-    metas: channels.map(channel => ({
-      id: channel.id,
-      type: "tv",
-      name: channel.name,
-      poster: "https://img.icons8.com/color/240/tv.png"
-    }))
-  };
+
+  // Recarregar canais a cada pedido (podes mudar para cachear se quiseres)
+  try {
+    channels = await loadChannels();
+  } catch (err) {
+    console.error("Erro a recarregar canais no catálogo:", err);
+  }
+
+  const metas = channels.map(ch => ({
+    id: ch.id,
+    type: "tv",
+    name: ch.name,
+    poster: ch.poster
+  }));
+
   console.timeEnd("catalogHandler");
-  return response;
+  return { metas };
 });
 
+// Handler dos streams
 builder.defineStreamHandler(({ id }) => {
-  const ch = channels.find(c => c.id === id);
-  if (!ch) return { streams: [] };
-
+  console.log("Pedido stream para id:", id);
+  const channel = channels.find(ch => ch.id === id);
+  if (!channel) {
+    return { streams: [] };
+  }
   return {
-    streams: [{
-      title: ch.name,
-      url: ch.url,
-      isFree: true
-    }]
+    streams: [
+      {
+        title: channel.name,
+        url: channel.url,
+        // usa o protocolo correto, geralmente HTTP/HTTPS
+        protocol: "http",
+        mimetype: "video/mp2t"
+      }
+    ]
   };
 });
 
-const PORT = process.env.PORT || 7000;
-console.log(`⚡️ A minha app vai ouvir na porta: ${PORT}`);
-
+// Cria servidor HTTP (Railway vai fazer proxy HTTPS por fora)
 const server = http.createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  builder.getInterface(req, res);
+  builder.getInterface()(req, res);
 });
 
 server.listen(PORT, () => {
+  console.log(`⚡️ A minha app vai ouvir na porta: ${PORT}`);
   console.log(`🚀 Addon a correr na porta ${PORT}`);
 });
