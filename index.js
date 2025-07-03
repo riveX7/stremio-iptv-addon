@@ -2,7 +2,6 @@ const { addonBuilder } = require("stremio-addon-sdk");
 const fetch = require("node-fetch");
 const http = require("http");
 
-// Manifesto do addon
 const manifest = {
   id: "community.iptvaddon.pt",
   version: "1.0.0",
@@ -32,6 +31,8 @@ async function loadChannels() {
     const lines = text.split("\n");
     let currentName = "";
 
+    channels = []; // reset para garantir
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
       if (line.startsWith("#EXTINF")) {
@@ -46,7 +47,6 @@ async function loadChannels() {
         });
       }
     }
-
     console.log(`✅ ${channels.length} canais carregados da M3UPT`);
   } catch (err) {
     console.error("❌ Erro a carregar lista M3U:", err);
@@ -80,12 +80,12 @@ builder.defineStreamHandler(({ id }) => {
   };
 });
 
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 7000;
 console.log(`⚡️ A minha app vai ouvir na porta: ${PORT}`);
 
 const server = http.createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  builder.getInterface()(req, res);
+  builder.getRouter()(req, res);
 });
 
 server.listen(PORT, () => {
