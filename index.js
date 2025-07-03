@@ -2,6 +2,7 @@ const { addonBuilder } = require("stremio-addon-sdk");
 const fetch = require("node-fetch");
 const http = require("http");
 
+// Manifesto do addon
 const manifest = {
   id: "community.iptvaddon.pt",
   version: "1.0.0",
@@ -21,6 +22,7 @@ const manifest = {
 };
 
 const builder = new addonBuilder(manifest);
+
 let channels = [];
 
 async function loadChannels() {
@@ -78,7 +80,15 @@ builder.defineStreamHandler(({ id }) => {
   };
 });
 
+// Servidor HTTP com CORS aberto
 const PORT = process.env.PORT || 7000;
-http.createServer(builder.getInterface()).listen(PORT, () => {
-  console.log(`🚀 Addon a correr em http://localhost:${PORT}/manifest.json`);
+
+const server = http.createServer((req, res) => {
+  // Libera CORS para todo mundo
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  builder.getInterface()(req, res);
+});
+
+server.listen(PORT, () => {
+  console.log(`🚀 Addon a correr na porta ${PORT}`);
 });
