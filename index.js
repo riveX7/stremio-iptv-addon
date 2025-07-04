@@ -1,98 +1,150 @@
 const express = require('express');
-const fetch = require('node-fetch');
-const { addonBuilder } = require('stremio-addon-sdk');
+const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
+const axios = require('axios');
+const NodeCache = require('node-cache');
+
+// Config
+const M3U_URL = 'https://m3upt.com/iptv';
+const PORT = process.env.PORT || 8080;
+const FETCH_INTERVAL = parseInt(process.env.FETCH_INTERVAL) || 86400000; // 1 dia
+const FETCH_TIMEOUT = parseInt(process.env.FETCH_TIMEOUT) || 10000;
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const cache = new NodeCache(); // TTL dinâmico
 
-const M3U_URL = 'https://m3upt.com/iptv';
-
-async function parseM3U(url) {
-  const res = await fetch(url);
-  const text = await res.text();
-
-  const lines = text.split('\n');
-  const channels = [];
-  let currentTitle = null;
-  let currentLogo = null;
-
-  for (let line of lines) {
-    line = line.trim();
-    if (line.startsWith('#EXTINF')) {
-      const titleMatch = line.match(/,(.*)$/);
-      const logoMatch = line.match(/tvg-logo="([^"]+)"/);
-
-      currentTitle = titleMatch ? titleMatch[1].trim() : 'Canal sem nome';
-      currentLogo = logoMatch ? logoMatch[1] : null;
-    } else if (line && !line.startsWith('#')) {
-      channels.push({
-        name: currentTitle,
-        logo: currentLogo,
-        url: line
-      });
-      currentTitle = null;
-      currentLogo = null;
-    }
-  }
-
-  return channels;
-}
-
+// Manifesto base
 const manifest = {
-  id: 'org.miguel.m3upt',
-  version: '1.0.0',
-  name: 'Miguel IPTV M3UPT Addon',
-  description: 'Addon IPTV com lista M3U da M3UPT para Stremio',
-  resources: ['stream', 'catalog', 'meta'],
-  types: ['tv'],
-  idPrefixes: ['tt'],
-  catalogs: [{
-    type: 'tv',
-    id: 'iptv',
-    name: 'Canais M3UPT',
-    extra: [{ name: 'search', isRequired: false }]
-  }]
+	id: 'pt.iptv',
+	version: '1.0.0',
+	name: 'IPTV Portugal',
+	description: 'Canais de televisão portugueses em direto',
+	resources: ['catalog', 'meta', 'stream'],
+	types: ['tv'],
+	catalogs: [
+		{
+			type: 'tv',
+			id: 'iptv-pt',
+			name: 'Canais Portugueses',
+		},
+	],
+	idPrefixes: ['pt-iptv-'],
+	logo: 'https://upload.wikimedia.org/wikipedia/commons/5/5a/Flag_of_Portugal.svg',
+	background: 'https://dl.strem.io/addon-background.jpg',
+	icon: 'https://dl.strem.io/addon-logo.png',
+	behaviorHints: {
+		configurable: false,
+		configurationRequired: false
+	}
 };
 
-const builder = new addonBuilder(manifest);
+const addon = new addonBuilder(manifest);
 
-builder.defineCatalogHandler(async () => {
-  const channels = await parseM3U(M3U_URL);
+// Função para fazer parse do ficheiro M3U
+const parseM3U = (raw) => {
+	const lines = raw.split('\n');
+	const channels = [];
 
-  const metas = channels.map((channel, idx) => ({
-    id: `tt${idx}`,
-    type: 'tv',
-    name: channel.name,
-    poster: channel.logo || 'https://via.placeholder.com/256x144.png?text=Sem+Logo',
-    description: '',
-    releaseInfo: ''
-  }));
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i].trim();
 
-  return { metas };
+		if (line.startsWith('#EXTINF')) {
+			const nameMatch = line.match(/,(.*)$/);
+			const logoMatch = line.match(/tvg-logo="([^"]+)"/);
+
+			const name = nameMatch ? nameMatch[1] : 'Canal Desconhecido';
+			const logo = logoMatch ? logoMatch[1] : null;
+			const url = lines[i + 1]?.trim();
+
+			if (url && url.startsWith('http')) {
+				channels.push({
+					id: 'pt-iptv-' + Buffer.from(name).toString('base64'),
+					name,
+					logo,
+					url
+				});
+			}
+		}
+	}
+	return channels;
+};
+
+// Função para obter canais (com cache)
+const fetchChannels = async () => {
+	if (cache.has('channels')) {
+		return cache.get('channels');
+	}
+
+	try {
+		console.log('A obter lista M3U...');
+		const res = await axios.get(M3U_URL, { timeout: FETCH_TIMEOUT });
+		const channels = parseM3U(res.data);
+		cache.set('channels', channels, FETCH_INTERVAL / 1000);
+		console.log(`Foram carregados ${channels.length} canais.`);
+		return channels;
+	} catch (err) {
+		console.error('Erro ao obter M3U:', err.message);
+		return cache.get('channels') || [];
+	}
+};
+
+// Catalog Handler
+addon.defineCatalogHandler(async () => {
+	const channels = await fetchChannels();
+
+	const metas = channels.map((channel) => ({
+		id: channel.id,
+		type: 'tv',
+		name: channel.name,
+		poster: channel.logo,
+		posterShape: 'square',
+		logo: channel.logo,
+		background: channel.logo,
+	}));
+
+	return { metas };
 });
 
-builder.defineMetaHandler(async ({ id }) => {
-  const channels = await parseM3U(M3U_URL);
-  const channel = channels.find((_, idx) => `tt${idx}` === id);
+// Meta Handler
+addon.defineMetaHandler(async ({ id }) => {
+	const channels = await fetchChannels();
+	const channel = channels.find((c) => c.id === id);
 
-  if (!channel) return null;
+	if (!channel) return { meta: {} };
 
-  return {
-    id,
-    type: 'tv',
-    name: channel.name,
-    poster: channel.logo || 'https://via.placeholder.com/256x144.png?text=Sem+Logo',
-    description: '',
-    streams: [{
-      title: channel.name,
-      url: channel.url,
-      type: 'live'
-    }]
-  };
+	return {
+		meta: {
+			id: channel.id,
+			type: 'tv',
+			name: channel.name,
+			poster: channel.logo,
+			posterShape: 'square',
+			logo: channel.logo,
+			background: channel.logo,
+		},
+	};
 });
 
-app.use(builder.getMiddleware());
+// Stream Handler
+addon.defineStreamHandler(async ({ id }) => {
+	const channels = await fetchChannels();
+	const channel = channels.find((c) => c.id === id);
 
-app.listen(PORT, () => {
-  console.log(`🚀 Miguel IPTV Addon a correr na porta ${PORT}`);
+	if (!channel) return { streams: [] };
+
+	return {
+		streams: [
+			{
+				title: 'Live',
+				url: channel.url,
+			},
+		],
+	};
 });
+
+// Endpoint do manifesto
+app.get('/manifest.json', (req, res) => {
+	res.setHeader('Content-Type', 'application/json');
+	res.send(JSON.stringify(manifest));
+});
+
+serveHTTP(addon.getInterface(), { server: app, path: '/manifest.json', port: PORT });
