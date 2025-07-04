@@ -28,9 +28,9 @@ const manifest = {
 		},
 	],
 	idPrefixes: ['pt-iptv-'],
-	logo: 'https://upload.wikimedia.org/wikipedia/commons/5/5a/Flag_of_Portugal.svg',
-	background: 'https://dl.strem.io/addon-background.jpg',
-	icon: 'https://dl.strem.io/addon-logo.png',
+	logo: 'https://cdn6.aptoide.com/imgs/9/1/d/91df98a9ef9df7f4377e24e7b9b9e20a_icon.png',
+	background: 'https://img.freepik.com/free-photo/living-room-with-tv-sofas-blurred_1203-1104.jpg',
+	icon: 'https://cdn6.aptoide.com/imgs/9/1/d/91df98a9ef9df7f4377e24e7b9b9e20a_icon.png',
 	behaviorHints: {
 		configurable: false,
 		configurationRequired: false
