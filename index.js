@@ -146,5 +146,11 @@ app.get('/manifest.json', (req, res) => {
 	res.setHeader('Content-Type', 'application/json');
 	res.send(JSON.stringify(manifest));
 });
+const path = require('path');
+
+// Serve o ficheiro index.html quando fizerem GET na raiz '/'
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 serveHTTP(addon.getInterface(), { server: app, path: '/manifest.json', port: PORT });
