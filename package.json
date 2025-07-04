@@ -1,19 +1,25 @@
 {
-  "name": "pt-ip-tv-addon",
+  "name": "stremio-iptv-pt",
   "version": "1.0.0",
-  "description": "Addon IPTV com lista M3U da M3UPT para Stremio",
+  "description": "Addon IPTV para Stremio com canais portugueses via lista M3U",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
+  "keywords": [
+    "iptv",
+    "stremio",
+    "addon",
+    "portugal",
+    "m3u",
+    "tv"
+  ],
   "author": "Miguel",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
-    "node-fetch": "^2.6.7",
+    "axios": "^1.6.8",
+    "express": "^4.19.2",
+    "node-cache": "^5.1.2",
     "stremio-addon-sdk": "^1.6.10"
-  },
-  "engines": {
-    "node": ">=18.0.0"
   }
 }
