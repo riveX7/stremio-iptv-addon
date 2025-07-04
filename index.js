@@ -4,7 +4,7 @@ const axios = require('axios');
 const NodeCache = require('node-cache');
 
 // Config
-const M3U_URL = 'https://raw.githubusercontent.com/Free-TV/IPTV/refs/heads/master/lists/portugal.md';
+const M3U_URL = 'https://raw.githubusercontent.com/LITUATUI/M3UPT/main/M3U/M3UPT.m3u';
 const PORT = process.env.PORT || 8080;
 const FETCH_INTERVAL = parseInt(process.env.FETCH_INTERVAL) || 86400000; // 1 dia
 const FETCH_TIMEOUT = parseInt(process.env.FETCH_TIMEOUT) || 10000;
