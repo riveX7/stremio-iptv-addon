@@ -4,7 +4,7 @@ const axios = require('axios');
 const NodeCache = require('node-cache');
 
 // Config
-const M3U_URL = 'https://m3upt.com/iptv';
+const M3U_URL = 'https://iptv-org.github.io/iptv/index.m3u';
 const PORT = process.env.PORT || 8080;
 const FETCH_INTERVAL = parseInt(process.env.FETCH_INTERVAL) || 86400000; // 1 dia
 const FETCH_TIMEOUT = parseInt(process.env.FETCH_TIMEOUT) || 10000;
